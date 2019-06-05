@@ -1,0 +1,79 @@
+<h1>Websocket server running on :1111</h1>
+<h3>Connected clients:</h3>
+<ul id='users'>
+</ul>
+
+
+<script>
+function userToElId(user) {
+  return `user-${user.id}`;
+}
+
+function tryConnect() {
+  const clientId = 'web';
+
+  function tearDown() {
+    wsClient.removeEventListener('error', onError);
+    wsClient.removeEventListener('close', onClose);
+    wsClient.removeEventListener('open', onOpen);
+  }
+
+  function onError(e) {
+    console.error(`Can't connect, will retry in 3 seconds`, e.message);
+    tearDown();
+    setTimeout(tryConnect, 3000);
+  }
+
+  function onClose() {
+    console.error(`Socket closed, reconnecting`);
+    tearDown();
+    tryConnect();
+  }
+
+  function onOpen() {
+    console.log('Connected to the server');
+  }
+
+  function onMessage(msg) {
+    const json = JSON.parse(msg.data);
+    console.log('Recieved message', json);
+
+    if (
+      json.eventType === 'USER_CONNECTED' &&
+      !document.getElementById(userToElId(json.user))
+    ) {
+      const user = json.user;
+      const li = document.createElement('li');
+      li.id = userToElId(user);
+
+      const sendMessageBtn = document.createElement('button');
+      sendMessageBtn.innerText = 'Send message';
+      sendMessageBtn.addEventListener('click', () => {
+        const msg = {
+          to: user.id,
+          text: 'hi from the webs'
+        };
+        wsClient.send(JSON.stringify(msg));
+      });
+
+      li.innerText = user.name;
+      li.appendChild(sendMessageBtn);
+      window.users.appendChild(li);
+    }
+
+    if (json.eventType === 'USER_DISCONNECTED') {
+      document.getElementById(userToElId(json.user)).remove();
+    }
+  }
+
+  const headers = clientId ? { token: clientId } : {};
+
+  const wsClient = new WebSocket(`ws://127.0.0.1:1111/web`);
+  wsClient.addEventListener('error', onError);
+  wsClient.addEventListener('close', onClose);
+  wsClient.addEventListener('open', onOpen);
+  wsClient.addEventListener('message', onMessage);
+}
+
+tryConnect();
+</script>
